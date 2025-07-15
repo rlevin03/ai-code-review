@@ -1,9 +1,6 @@
 from fastapi import APIRouter, Request, HTTPException, Header
-import hmac
-import hashlib
-from app.core.github_client import GitHubClient
 from app.core.security import verify_webhook_signature
-
+from app.services.github_service import handle_pull_request
 
 router = APIRouter()
 

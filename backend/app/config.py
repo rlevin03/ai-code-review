@@ -3,15 +3,17 @@ import os
 
 class Settings(BaseSettings):
     # GitHub App
-    GITHUB_APP_ID: int = os.getenv("GITHUB_APP_ID")
-    GITHUB_PRIVATE_KEY_PATH: str = os.getenv("GITHUB_PRIVATE_KEY_PATH")
-    GITHUB_WEBHOOK_SECRET: str = os.getenv("GITHUB_WEBHOOK_SECRET")
+    GITHUB_APP_ID: int
+    GITHUB_PRIVATE_KEY_PATH: str = "mycodereviewbot.2025-07-01.private-key.pem"
+    GITHUB_WEBHOOK_SECRET: str
     
     # OpenAI
-    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY")
+    OPENAI_API_KEY: str
+    
+    SERVER_HOST: str = "0.0.0.0"
+    SERVER_PORT: int = 8000
     
     class Config:
         env_file = ".env"
-        case_sensitive = False
 
 settings = Settings()
