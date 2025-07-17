@@ -2,8 +2,8 @@ from openai import OpenAI
 from typing import Dict
 from app.config import settings
 
-client = OpenAI()
-client.api_key = settings.OPENAI_API_KEY
+# Initialize client with API key from settings
+client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 async def analyze_code(filename: str, patch: str, full_content: str = None) -> Dict:
     """Analyze code using AI"""

@@ -28,4 +28,17 @@ async def github_webhook(
             await handle_pull_request(payload)
     
     return {"status": "ok"}
+
+@router.post("/github/test")
+async def test_webhook(request: Request):
+    """Test endpoint to see raw webhook data"""
+    body = await request.body()
+    headers = dict(request.headers)
+    
+    print("=== WEBHOOK RECEIVED ===")
+    print(f"Headers: {headers}")
+    print(f"Body: {body.decode()}")
+    print("=======================")
+    
+    return {"status": "test received"}
         
