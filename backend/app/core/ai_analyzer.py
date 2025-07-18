@@ -1,6 +1,6 @@
 import json
 import re
-from typing import Dict, List, Optional
+from typing import Dict
 import openai
 from app.config import settings
 
@@ -58,4 +58,85 @@ class CodeAnalyzer:
 File: {filename}
 Changes:
 {patch}
-        """
+
+Please review this code and identify any potential issues such as:
+- Security vulnerabilities
+- Performance problems
+- Code quality issues
+- Logic errors
+- Best practice violations
+
+For each issue found, provide:
+1. Line number (if applicable)
+2. Issue description
+3. Severity level (high/medium/low)
+4. Suggested fix
+
+Respond in JSON format:
+{{
+    "issues": [
+        {{
+            "line": <line_number>,
+            "message": "<description and suggested fix>",
+            "severity": "<high|medium|low>"
+        }}
+    ]
+}}
+"""
+
+    async def _call_ai(self, prompt: str) -> str:
+        """Make API call to OpenAI"""
+        try:
+            client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+            response = await client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are an expert code reviewer."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=1500,
+                temperature=0.1
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            print(f"OpenAI API error: {e}")
+            return '{"issues": []}'
+    
+    def _parse_ai_response(self, response: str, added_lines: Dict[int, str]) -> Dict:
+        """Parse AI response and validate line numbers"""
+        try:
+            # Try to parse JSON response
+            result = json.loads(response)
+            
+            # Validate and filter issues
+            valid_issues = []
+            for issue in result.get('issues', []):
+                line_num = issue.get('line')
+                if line_num and line_num in added_lines:
+                    valid_issues.append(issue)
+                elif not line_num:
+                    # General issue not tied to specific line
+                    valid_issues.append(issue)
+            
+            return {"issues": valid_issues}
+        except json.JSONDecodeError:
+            # If AI didn't return valid JSON, try to extract useful info
+            print(f"Failed to parse AI response: {response}")
+            return {"issues": []}
+
+# Create a global analyzer instance
+_analyzer = None
+
+async def analyze_code(filename: str, patch: str, full_content: str = None) -> Dict:
+    """Standalone function to analyze code changes"""
+    global _analyzer
+    if _analyzer is None:
+        _analyzer = CodeAnalyzer()
+    
+    file_data = {
+        'filename': filename,
+        'patch': patch,
+        'full_content': full_content
+    }
+    
+    return await _analyzer.analyze_code(file_data)
