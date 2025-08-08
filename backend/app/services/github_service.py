@@ -69,13 +69,17 @@ async def handle_pull_request(payload: dict):
                             'side': 'RIGHT'
                         }
 
-                        # For multi-line suggestions, GitHub expects start_line and line, both with side info
+                        # For multi-line suggestions, GitHub expects start_line and line (end), both with side info
                         if start_line and end_line:
                             comment_payload['start_line'] = int(start_line)
                             comment_payload['line'] = int(end_line)
                             comment_payload['start_side'] = 'RIGHT'
                         elif target_line:
-                            comment_payload['line'] = int(target_line)
+                            # Include start_line for single-line to avoid off-by-one ambiguities
+                            tl = int(target_line)
+                            comment_payload['line'] = tl
+                            comment_payload['start_line'] = tl
+                            comment_payload['start_side'] = 'RIGHT'
                         else:
                             # No anchor line; skip
                             continue
@@ -84,13 +88,15 @@ async def handle_pull_request(payload: dict):
         
         # Submit the review
         if all_comments:
+            head_sha = pr.head.sha
             # GitHub limits to 30 comments per review
             for i in range(0, len(all_comments), 30):
                 batch = all_comments[i:i+30]
                 pr.create_review(
                     body=f"AI Code Review (Part {i//30 + 1})" if len(all_comments) > 30 else "AI Code Review Complete",
                     event="COMMENT",
-                    comments=batch
+                    comments=batch,
+                    commit=head_sha
                 )
             logger.info(f"Submitted review with {len(all_comments)} comments")
         else:
@@ -104,10 +110,11 @@ async def handle_pull_request(payload: dict):
     except Exception as e:
         logger.error(f"Error processing PR: {e}", exc_info=True)
         try:
-            repo = gh.get_repo(repo_name)
-            pr = repo.get_pull(pr_number)
-            pr.create_issue_comment(
-                f"AI Code Review failed: {str(e)}\n\nPlease check the logs or try again."
-            )
+            if gh:
+                repo = gh.get_repo(repo_name)
+                pr = repo.get_pull(pr_number)
+                pr.create_issue_comment(
+                    f"AI Code Review failed: {str(e)}\n\nPlease check the logs or try again."
+                )
         except:
             pass
