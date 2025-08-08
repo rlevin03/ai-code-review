@@ -18,6 +18,7 @@ def load_analytics():
 def save_analytics(data):
     with open(ANALYTICS_FILE, 'w') as f:
         json.dump(data, f)
+        f.write("\n")
 
 @router.get("/dashboard")
 async def get_dashboard_data() -> Dict:

@@ -12,6 +12,7 @@ async def handle_pull_request(payload: dict):
     repo_name = payload['repository']['full_name']
     pr_number = payload['pull_request']['number']
     
+    gh = None
     try:
         # Get installation access token
         installation_id = payload['installation']['id']
@@ -69,17 +70,23 @@ async def handle_pull_request(payload: dict):
                             'side': 'RIGHT'
                         }
 
-                        # For multi-line suggestions, GitHub expects start_line and line (end), both with side info
+                        # Multi-line suggestion with proper ordering
                         if start_line and end_line:
-                            comment_payload['start_line'] = int(start_line)
-                            comment_payload['line'] = int(end_line)
-                            comment_payload['start_side'] = 'RIGHT'
+                            sl = int(start_line)
+                            el = int(end_line)
+                            if sl == el:
+                                # Convert to single-line anchor
+                                comment_payload['line'] = sl
+                            else:
+                                if sl > el:
+                                    sl, el = el, sl
+                                comment_payload['start_line'] = sl
+                                comment_payload['line'] = el
+                                comment_payload['start_side'] = 'RIGHT'
                         elif target_line:
-                            # Include start_line for single-line to avoid off-by-one ambiguities
+                            # Single-line anchor: only 'line'
                             tl = int(target_line)
                             comment_payload['line'] = tl
-                            comment_payload['start_line'] = tl
-                            comment_payload['start_side'] = 'RIGHT'
                         else:
                             # No anchor line; skip
                             continue
@@ -89,6 +96,7 @@ async def handle_pull_request(payload: dict):
         # Submit the review
         if all_comments:
             head_sha = pr.head.sha
+            head_commit = repo.get_commit(head_sha)
             # GitHub limits to 30 comments per review
             for i in range(0, len(all_comments), 30):
                 batch = all_comments[i:i+30]
@@ -96,7 +104,7 @@ async def handle_pull_request(payload: dict):
                     body=f"AI Code Review (Part {i//30 + 1})" if len(all_comments) > 30 else "AI Code Review Complete",
                     event="COMMENT",
                     comments=batch,
-                    commit=head_sha
+                    commit=head_commit
                 )
             logger.info(f"Submitted review with {len(all_comments)} comments")
         else:
