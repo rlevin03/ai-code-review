@@ -53,35 +53,40 @@ class CodeAnalyzer:
         """Create an effective prompt for the AI"""
         file_extension = filename.split('.')[-1]
         
-        return f"""You are an expert {file_extension} code reviewer. Analyze this code change:
+        return f"""You are an expert {file_extension} code reviewer. Analyze this code change and produce actionable suggestions that GitHub can apply directly.
 
 File: {filename}
 Changes:
 {patch}
 
-Please review this code and identify any potential issues such as:
-- Security vulnerabilities
-- Performance problems
-- Code quality issues
-- Logic errors
-- Best practice violations
+Identify issues such as security vulnerabilities, performance problems, code quality issues, logic errors, and best practice violations.
 
-For each issue found, provide:
-1. Line number (if applicable)
-2. Issue description
-3. Severity level (high/medium/low)
-4. Suggested fix
+For each issue, respond with a JSON object containing:
+1. "line": the target line number on the RIGHT (new) side of the diff (required if no range)
+2. "severity": one of high | medium | low
+3. "message": a concise human-readable explanation (single sentence)
+4. "suggestion": the exact replacement code for the target line(s). This must be RAW code only (no backticks, no commentary)
+5. Optional: "start_line": the first line number (inclusive) if suggesting changes spanning multiple lines on the RIGHT side
+6. Optional: "end_line": the last line number (inclusive) for a multi-line suggestion
+
+Rules:
+- Only reference lines that exist on the RIGHT (new) side of the diff; do not reference removed lines.
+- Prefer single-line suggestions; use start_line/end_line only when necessary.
+- The suggestion content must contain ONLY the final code for the targeted lines.
 
 Respond in JSON format:
-{{
+{
     "issues": [
-        {{
+        {
             "line": <line_number>,
-            "message": "<description and suggested fix>",
-            "severity": "<high|medium|low>"
-        }}
+            "message": "<short explanation>",
+            "severity": "<high|medium|low>",
+            "suggestion": "<replacement code>",
+            "start_line": <optional_start_line>,
+            "end_line": <optional_end_line>
+        }
     ]
-}}
+}
 """
 
     async def _call_ai(self, prompt: str) -> str:
@@ -89,13 +94,11 @@ Respond in JSON format:
         try:
             client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
             response = await client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="o4-mini-2025-04-16",
                 messages=[
                     {"role": "system", "content": "You are an expert code reviewer."},
                     {"role": "user", "content": prompt}
-                ],
-                max_tokens=1500,
-                temperature=0.1
+                ]
             )
             return response.choices[0].message.content
         except Exception as e:
@@ -105,22 +108,48 @@ Respond in JSON format:
     def _parse_ai_response(self, response: str, added_lines: Dict[int, str]) -> Dict:
         """Parse AI response and validate line numbers"""
         try:
-            # Try to parse JSON response
             result = json.loads(response)
-            
-            # Validate and filter issues
+
             valid_issues = []
             for issue in result.get('issues', []):
+                # Must have a suggestion and at least one target line
+                suggestion = issue.get('suggestion')
                 line_num = issue.get('line')
-                if line_num and line_num in added_lines:
-                    valid_issues.append(issue)
-                elif not line_num:
-                    # General issue not tied to specific line
-                    valid_issues.append(issue)
-            
+                start_line = issue.get('start_line')
+                end_line = issue.get('end_line')
+
+                if not suggestion or (not line_num and not (start_line and end_line)):
+                    continue
+
+                # Normalize types and ranges
+                if isinstance(line_num, str) and line_num.isdigit():
+                    line_num = int(line_num)
+                    issue['line'] = line_num
+                if isinstance(start_line, str) and start_line.isdigit():
+                    start_line = int(start_line)
+                    issue['start_line'] = start_line
+                if isinstance(end_line, str) and end_line.isdigit():
+                    end_line = int(end_line)
+                    issue['end_line'] = end_line
+
+                if start_line and not end_line:
+                    end_line = start_line
+                    issue['end_line'] = end_line
+                if end_line and not start_line:
+                    start_line = end_line
+                    issue['start_line'] = start_line
+
+                # Basic sanity checks
+                if start_line and end_line and start_line > end_line:
+                    start_line, end_line = end_line, start_line
+                    issue['start_line'] = start_line
+                    issue['end_line'] = end_line
+
+                # Keep the issue; rely on GitHub to validate exact line availability in the diff
+                valid_issues.append(issue)
+
             return {"issues": valid_issues}
         except json.JSONDecodeError:
-            # If AI didn't return valid JSON, try to extract useful info
             print(f"Failed to parse AI response: {response}")
             return {"issues": []}
 

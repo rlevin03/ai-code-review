@@ -44,18 +44,43 @@ async def handle_pull_request(payload: dict):
                     full_content=None  #TODO: Add full content
                 )
                 
-                # Add review comments
+                # Add review comments (as GitHub suggestions)
                 if analysis and analysis.get('issues'):
                     for issue in analysis['issues']:
+                        suggestion_text = issue.get('suggestion')
+                        if not suggestion_text:
+                            continue
+
                         issues_count += 1
-                        comment_body = f"**{issue.get('severity', 'info').upper()}**: {issue['message']}"
-                        
-                        if issue.get('line'):
-                            all_comments.append({
-                                'path': file.filename,
-                                'line': issue['line'],
-                                'body': comment_body
-                            })
+                        severity = issue.get('severity', 'info').upper()
+                        message = issue.get('message', 'Suggestion')
+                        comment_body = (
+                            f"**{severity}**: {message}\n\n"
+                            f"```suggestion\n{suggestion_text}\n```"
+                        )
+
+                        start_line = issue.get('start_line')
+                        end_line = issue.get('end_line')
+                        target_line = issue.get('line')
+
+                        comment_payload = {
+                            'path': file.filename,
+                            'body': comment_body,
+                            'side': 'RIGHT'
+                        }
+
+                        # For multi-line suggestions, GitHub expects start_line and line, both with side info
+                        if start_line and end_line:
+                            comment_payload['start_line'] = int(start_line)
+                            comment_payload['line'] = int(end_line)
+                            comment_payload['start_side'] = 'RIGHT'
+                        elif target_line:
+                            comment_payload['line'] = int(target_line)
+                        else:
+                            # No anchor line; skip
+                            continue
+
+                        all_comments.append(comment_payload)
         
         # Submit the review
         if all_comments:
