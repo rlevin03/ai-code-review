@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from datetime import datetime
 import os
+from app.config import settings
 
 router = APIRouter()
 
@@ -20,11 +21,11 @@ async def health_check():
 @router.get("/ready")
 async def readiness_check():
     """Check if all services are ready"""
+    private_key_path = settings.GITHUB_PRIVATE_KEY_PATH
     checks = {
-        "github_key": os.path.exists("mycodereviewbot.2025-07-01.private-key.pem"),
+        "github_key": os.path.exists(private_key_path) if private_key_path else False,
         "env_vars": all([
             os.getenv("GITHUB_APP_ID"),
-            os.getenv("GITHUB_WEBHOOK_SECRET"),
             os.getenv("OPENAI_API_KEY")
         ])
     }

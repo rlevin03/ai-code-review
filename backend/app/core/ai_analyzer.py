@@ -162,7 +162,6 @@ class CodeAnalyzer:
         """Extract a JSON object from text that may include markdown fences or extra prose."""
         s = text.strip()
         # Try fenced block first: ```json ... ``` or ``` ... ```
-        import re
         fence_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", s, re.IGNORECASE)
         if fence_match:
             candidate = fence_match.group(1).strip()

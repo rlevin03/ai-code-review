@@ -2,7 +2,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 from app.api import webhooks, health, analytics
-from app.config import settings
 
 logging.basicConfig(
     level=logging.INFO,
