@@ -23,7 +23,7 @@ An intelligent FastAPI service that performs automated code reviews on GitHub pu
 3. Create `backend/.env` (see Configuration below).
 4. Place your GitHub App private key `.pem` file where the service can read it (see Configuration).
 5. Start the API: `./scripts/run-backend.bat`
-6. Start ngrok: `ngrok http 8000`
+6. Start ngrok in another terminal: `ngrok http 8000`
 7. Open `http://localhost:8000/docs` for interactive API docs.
 
 ## Quick start (macOS/Linux)
@@ -37,7 +37,7 @@ An intelligent FastAPI service that performs automated code reviews on GitHub pu
 4. Place your GitHub App private key `.pem` file where the service can read it (see Configuration).
 5. Run the API:
    - From the `backend` directory: `uvicorn app.main:app --reload --port 8000`
-6. Start nrokk: `ngrok http 8000`
+6. Start ngrok in another terminal: `ngrok http 8000`
 7. Open `http://localhost:8000/docs`.
 
 ## Configuration
@@ -112,4 +112,5 @@ curl -X POST "http://localhost:8000/api/webhooks/github/test" \
 ## License
 
 This project is released under the MIT License. See `LICENSE` for details.
+
 
